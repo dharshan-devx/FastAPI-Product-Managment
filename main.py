@@ -2,11 +2,20 @@ import os
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+
 import database_models
 from database import SessionLocal, engine
 from models import Product
 
+# ---------------------------------------------------------
+# Database Initialization
+# ---------------------------------------------------------
+
 database_models.Base.metadata.create_all(bind=engine)
+
+# ---------------------------------------------------------
+# App Configuration
+# ---------------------------------------------------------
 
 app = FastAPI(
     title="Dhxrshxn FastAPI Project",
@@ -14,16 +23,23 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS configuration
-# For production, specify your frontend domain
-# For development, allow localhost:3000
-# For Render deployment, you'll update this with your frontend URL
+# ---------------------------------------------------------
+# CORS Configuration
+# ---------------------------------------------------------
 
+# ALLOWED_ORIGINS example:
+# http://localhost:3000,https://dhxrshxn-frontend.onrender.com
 
-# Get allowed origins from environment variable, default to localhost for development
-allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000")
-allowed_origins = [origin.strip()
-                   for origin in allowed_origins_str.split(",") if origin.strip()]
+allowed_origins_str = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:3000"
+)
+
+allowed_origins = [
+    origin.strip()
+    for origin in allowed_origins_str.split(",")
+    if origin.strip()
+]
 
 app.add_middleware(
     CORSMiddleware,
@@ -33,6 +49,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ---------------------------------------------------------
+# Root Endpoint
+# ---------------------------------------------------------
+
+@app.get("/")
+def root():
+    return {"message": "Dhxrshxn FastAPI Backend Running"}
+
+# ---------------------------------------------------------
+# Dependency
+# ---------------------------------------------------------
 
 def get_db():
     db = SessionLocal()
@@ -41,23 +68,19 @@ def get_db():
     finally:
         db.close()
 
+# ---------------------------------------------------------
+# Sample Data
+# ---------------------------------------------------------
 
-# List of products with 4 sample products
 sample_products = [
-    Product(id=1, name="Phone", description="A smartphone",
-            price=699.99, quantity=50),
-    Product(id=2, name="Laptop", description="A powerful laptop",
-            price=999.99, quantity=30),
-    Product(id=3, name="Pen", description="A blue ink pen",
-            price=1.99, quantity=100),
-    Product(id=4, name="Table", description="A wooden table",
-            price=199.99, quantity=20),
+    Product(id=1, name="Phone", description="A smartphone", price=699.99, quantity=50),
+    Product(id=2, name="Laptop", description="A powerful laptop", price=999.99, quantity=30),
+    Product(id=3, name="Pen", description="A blue ink pen", price=1.99, quantity=100),
+    Product(id=4, name="Table", description="A wooden table", price=199.99, quantity=20),
 ]
-
 
 def init_db():
     db = SessionLocal()
-
     existing_count = db.query(database_models.Product).count()
 
     if existing_count == 0:
@@ -68,22 +91,26 @@ def init_db():
 
     db.close()
 
-
 init_db()
 
+# ---------------------------------------------------------
+# API Endpoints
+# ---------------------------------------------------------
 
 @app.get("/products/")
 def get_all_products(db: Session = Depends(get_db)):
-    products = db.query(database_models.Product).all()
-    return products
+    return db.query(database_models.Product).all()
 
 
 @app.get("/products/{product_id}")
 def get_product_by_id(product_id: int, db: Session = Depends(get_db)):
     product = db.query(database_models.Product).filter(
-        database_models.Product.id == product_id).first()
+        database_models.Product.id == product_id
+    ).first()
+
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
+
     return product
 
 
@@ -94,21 +121,27 @@ def create_product(product: Product, db: Session = Depends(get_db)):
         db.add(db_product)
         db.commit()
         db.refresh(db_product)
-        return {"message": "Product created successfully", "product": db_product}
+        return {
+            "message": "Product created successfully",
+            "product": db_product
+        }
     except Exception as e:
         db.rollback()
         raise HTTPException(
-            status_code=500, detail=f"Error creating product: {str(e)}")
+            status_code=500,
+            detail=f"Error creating product: {str(e)}"
+        )
 
 
 @app.put("/products/{product_id}")
 def update_product(product_id: int, product: Product, db: Session = Depends(get_db)):
     db_product = db.query(database_models.Product).filter(
-        database_models.Product.id == product_id).first()
+        database_models.Product.id == product_id
+    ).first()
+
     if not db_product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    # Update fields
     db_product.name = product.name
     db_product.description = product.description
     db_product.price = product.price
@@ -116,19 +149,30 @@ def update_product(product_id: int, product: Product, db: Session = Depends(get_
 
     db.commit()
     db.refresh(db_product)
-    return {"message": "Product updated successfully", "product": db_product}
+
+    return {
+        "message": "Product updated successfully",
+        "product": db_product
+    }
 
 
 @app.delete("/products/{product_id}")
 def delete_product(product_id: int, db: Session = Depends(get_db)):
     db_product = db.query(database_models.Product).filter(
-        database_models.Product.id == product_id).first()
+        database_models.Product.id == product_id
+    ).first()
+
     if not db_product:
         raise HTTPException(status_code=404, detail="Product not found")
+
     db.delete(db_product)
     db.commit()
+
     return {"message": "Product deleted successfully"}
 
+# ---------------------------------------------------------
+# Health Check
+# ---------------------------------------------------------
 
 @app.get("/health")
 def health_check():
