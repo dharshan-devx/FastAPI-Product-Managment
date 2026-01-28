@@ -3,8 +3,9 @@ import axios from "axios";
 import "./App.css";
 import TaglineSection from "./TaglineSection";
 
+// ✅ Use environment variable for API base URL
 const api = axios.create({
-  baseURL: "http://localhost:8000",
+  baseURL: process.env.REACT_APP_API_URL || "http://localhost:8000",
 });
 
 function App() {
@@ -24,55 +25,41 @@ function App() {
   const [sortField, setSortField] = useState("id");
   const [sortDirection, setSortDirection] = useState("asc");
 
-  // Auto-dismiss messages after 5 seconds
+  // Auto-dismiss success messages
   useEffect(() => {
     if (message) {
-      const timer = setTimeout(() => {
-        setMessage("");
-      }, 5000);
+      const timer = setTimeout(() => setMessage(""), 5000);
       return () => clearTimeout(timer);
     }
   }, [message]);
 
+  // Auto-dismiss error messages
   useEffect(() => {
     if (error) {
-      const timer = setTimeout(() => {
-        setError("");
-      }, 5000);
+      const timer = setTimeout(() => setError(""), 5000);
       return () => clearTimeout(timer);
     }
   }, [error]);
 
-  // Fetch all products
+  // Fetch products
   const fetchProducts = async () => {
     setLoading(true);
     try {
       const res = await api.get("/products/");
       setProducts(res.data);
       setError("");
-    } catch (err) {
+    } catch {
       setError("Failed to fetch products");
     }
     setLoading(false);
   };
 
+  // Initial load
   useEffect(() => {
-    // Inline initial fetch to avoid referencing external deps
-    const run = async () => {
-      setLoading(true);
-      try {
-        const res = await api.get("/products/");
-        setProducts(res.data);
-        setError("");
-      } catch (err) {
-        setError("Failed to fetch products");
-      }
-      setLoading(false);
-    };
-    run();
+    fetchProducts();
   }, []);
 
-  // Handle sorting
+  // Sorting handler
   const handleSort = (field) => {
     if (sortField === field) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc");
@@ -82,31 +69,28 @@ function App() {
     }
   };
 
-  // Derived list with filter and sorting
+  // Filter + sort
   const filteredProducts = useMemo(() => {
     let filtered = products;
 
-    // Apply filter
     const q = filter.trim().toLowerCase();
     if (q) {
-      filtered = products.filter((p) =>
-        String(p.id).includes(q) ||
-        p.name?.toLowerCase().includes(q) ||
-        p.description?.toLowerCase().includes(q)
+      filtered = products.filter(
+        (p) =>
+          String(p.id).includes(q) ||
+          p.name?.toLowerCase().includes(q) ||
+          p.description?.toLowerCase().includes(q)
       );
     }
 
-    // Apply sorting
     return filtered.sort((a, b) => {
       let aVal = a[sortField];
       let bVal = b[sortField];
 
-      // Handle numeric fields
-      if (sortField === "id" || sortField === "price" || sortField === "quantity") {
+      if (["id", "price", "quantity"].includes(sortField)) {
         aVal = Number(aVal);
         bVal = Number(bVal);
       } else {
-        // Handle string fields
         aVal = String(aVal).toLowerCase();
         bVal = String(bVal).toLowerCase();
       }
@@ -117,7 +101,7 @@ function App() {
     });
   }, [products, filter, sortField, sortDirection]);
 
-  // Handle form input
+  // Form change
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
@@ -128,12 +112,13 @@ function App() {
     setEditId(null);
   };
 
-  // Create or update product
+  // Create / Update
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setMessage("");
     setError("");
+
     try {
       if (editId) {
         await api.put(`/products/${editId}`, {
@@ -152,15 +137,17 @@ function App() {
         });
         setMessage("Product created successfully");
       }
+
       resetForm();
       fetchProducts();
     } catch (err) {
       setError(err.response?.data?.detail || "Operation failed");
     }
+
     setLoading(false);
   };
 
-  // Edit product
+  // Edit
   const handleEdit = (product) => {
     setForm({
       id: product.id,
@@ -174,20 +161,22 @@ function App() {
     setError("");
   };
 
-  // Delete product
+  // Delete
   const handleDelete = async (id) => {
-    const ok = window.confirm("Delete this product?");
-    if (!ok) return;
+    if (!window.confirm("Delete this product?")) return;
+
     setLoading(true);
     setMessage("");
     setError("");
+
     try {
       await api.delete(`/products/${id}`);
       setMessage("Product deleted successfully");
       fetchProducts();
-    } catch (err) {
+    } catch {
       setError("Delete failed");
     }
+
     setLoading(false);
   };
 
@@ -201,30 +190,27 @@ function App() {
           <span className="brand-badge">📦</span>
           <h1>Dhxrshxn Trac</h1>
         </div>
-        <div className="top-actions">
-          <button className="btn btn-light" onClick={fetchProducts} disabled={loading}>
-            Refresh
-          </button>
-        </div>
+        <button className="btn btn-light" onClick={fetchProducts} disabled={loading}>
+          Refresh
+        </button>
       </header>
 
       <div className="container">
         <div className="stats">
           <div className="chip">Total: {products.length}</div>
-          <div className="search">
-            <input
-              type="text"
-              placeholder="Search by id, name or description..."
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-            />
-          </div>
+          <input
+            type="text"
+            placeholder="Search by id, name or description..."
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
         </div>
 
         <div className="content-grid">
           <div className="card form-card">
             <h2>{editId ? "Edit Product" : "Add Product"}</h2>
-            <form onSubmit={handleSubmit} className="product-form">
+
+            <form onSubmit={handleSubmit}>
               <input
                 type="number"
                 name="id"
@@ -234,6 +220,7 @@ function App() {
                 required
                 disabled={!!editId}
               />
+
               <input
                 type="text"
                 name="name"
@@ -242,6 +229,7 @@ function App() {
                 onChange={handleChange}
                 required
               />
+
               <input
                 type="text"
                 name="description"
@@ -250,6 +238,7 @@ function App() {
                 onChange={handleChange}
                 required
               />
+
               <input
                 type="number"
                 name="price"
@@ -259,6 +248,7 @@ function App() {
                 required
                 step="0.01"
               />
+
               <input
                 type="number"
                 name="quantity"
@@ -267,25 +257,22 @@ function App() {
                 onChange={handleChange}
                 required
               />
-              <div className="form-actions">
-                <button className="btn" type="submit" disabled={loading}>
-                  {editId ? "Update" : "Add"}
+
+              <button className="btn" type="submit" disabled={loading}>
+                {editId ? "Update" : "Add"}
+              </button>
+
+              {editId && (
+                <button
+                  className="btn btn-secondary"
+                  type="button"
+                  onClick={resetForm}
+                >
+                  Cancel
                 </button>
-                {editId && (
-                  <button
-                    className="btn btn-secondary"
-                    type="button"
-                    onClick={() => {
-                      resetForm();
-                      setMessage("");
-                      setError("");
-                    }}
-                  >
-                    Cancel
-                  </button>
-                )}
-              </div>
+              )}
             </form>
+
             {message && <div className="success-msg">{message}</div>}
             {error && <div className="error-msg">{error}</div>}
           </div>
@@ -294,74 +281,41 @@ function App() {
 
           <div className="card list-card">
             <h2>Products</h2>
-            {loading ? (
-              <div className="loader">Loading...</div>
-            ) : (
-              <div className="scroll-x">
-                <table className="product-table">
-                  <thead>
-                    <tr>
-                      <th
-                        className={`sortable ${sortField === 'id' ? `sort-${sortDirection}` : ''}`}
-                        onClick={() => handleSort('id')}
-                      >
-                        ID
-                      </th>
-                      <th
-                        className={`sortable ${sortField === 'name' ? `sort-${sortDirection}` : ''}`}
-                        onClick={() => handleSort('name')}
-                      >
-                        Name
-                      </th>
-                      <th>Description</th>
-                      <th
-                        className={`sortable ${sortField === 'price' ? `sort-${sortDirection}` : ''}`}
-                        onClick={() => handleSort('price')}
-                      >
-                        Price
-                      </th>
-                      <th
-                        className={`sortable ${sortField === 'quantity' ? `sort-${sortDirection}` : ''}`}
-                        onClick={() => handleSort('quantity')}
-                      >
-                        Quantity
-                      </th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredProducts.map((p) => (
-                      <tr key={p.id}>
-                        <td>{p.id}</td>
-                        <td className="name-cell">{p.name}</td>
-                        <td className="desc-cell" title={p.description}>{p.description}</td>
-                        <td className="price-cell">${currency(p.price)}</td>
-                        <td>
-                          <span className="qty-badge">{p.quantity}</span>
-                        </td>
-                        <td>
-                          <div className="row-actions">
-                            <button className="btn btn-edit" onClick={() => handleEdit(p)}>
-                              Edit
-                            </button>
-                            <button className="btn btn-delete" onClick={() => handleDelete(p.id)}>
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    {filteredProducts.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="empty">
-                          No products found.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
+
+            <table>
+              <thead>
+                <tr>
+                  <th onClick={() => handleSort("id")}>ID</th>
+                  <th onClick={() => handleSort("name")}>Name</th>
+                  <th>Description</th>
+                  <th onClick={() => handleSort("price")}>Price</th>
+                  <th onClick={() => handleSort("quantity")}>Quantity</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {filteredProducts.map((p) => (
+                  <tr key={p.id}>
+                    <td>{p.id}</td>
+                    <td>{p.name}</td>
+                    <td>{p.description}</td>
+                    <td>${currency(p.price)}</td>
+                    <td>{p.quantity}</td>
+                    <td>
+                      <button onClick={() => handleEdit(p)}>Edit</button>
+                      <button onClick={() => handleDelete(p.id)}>Delete</button>
+                    </td>
+                  </tr>
+                ))}
+
+                {filteredProducts.length === 0 && (
+                  <tr>
+                    <td colSpan="6">No products found</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
